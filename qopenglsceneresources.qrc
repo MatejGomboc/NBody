@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file>qopenglscenevertex.frag</file>
+        <file>qopenglscenevertex.vert</file>
+    </qresource>
+</RCC>
