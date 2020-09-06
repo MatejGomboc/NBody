@@ -19,9 +19,9 @@ add_executable(NBody
     mainwindow.cpp
     mainwindow.h
     mainwindow.ui
-    qopenglscenewidget.cpp
-    qopenglscenewidget.h
-    qopenglsceneresources.qrc
+    openglscenewidget.cpp
+    openglscenewidget.h
+    openglsceneresources.qrc
 )
 
 target_link_libraries(NBody PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)

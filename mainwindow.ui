@@ -16,21 +16,7 @@
   <property name="locale">
    <locale language="English" country="UnitedKingdom"/>
   </property>
-  <widget class="QOpenGLSceneWidget" name="central_widget">
-   <widget class="QPushButton" name="pushButton">
-    <property name="geometry">
-     <rect>
-      <x>300</x>
-      <y>230</y>
-      <width>75</width>
-      <height>23</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>PushButton</string>
-    </property>
-   </widget>
-  </widget>
+  <widget class="OpenGLSceneWidget" name="central_widget"/>
   <widget class="QMenuBar" name="menu_bar">
    <property name="geometry">
     <rect>
@@ -45,9 +31,9 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>QOpenGLSceneWidget</class>
+   <class>OpenGLSceneWidget</class>
    <extends>QWidget</extends>
-   <header>qopenglscenewidget.h</header>
+   <header>openglscenewidget.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
