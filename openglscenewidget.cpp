@@ -16,6 +16,11 @@ OpenGLSceneWidget::~OpenGLSceneWidget()
 
 bool OpenGLSceneWidget::initVertices(const std::vector<float>& vertices_data, QString& error_message)
 {
+    if (!m_opengl_initialized) {
+        error_message = "OpenGL not initialized.";
+        return false;
+    }
+
     if (!m_vertex_buffer.bind()) {
         error_message = "Cannot bind OpenGL vertex buffer.";
         return false;

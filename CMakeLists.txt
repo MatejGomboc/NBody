@@ -30,4 +30,5 @@ add_executable(NBody
 target_link_libraries(NBody PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     ${CMAKE_SOURCE_DIR}/CL/OpenCL.lib
+    Opengl32.lib
 )

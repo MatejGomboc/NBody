@@ -7,12 +7,16 @@
 #define CL_HPP_TARGET_OPENCL_VERSION 100
 #include <CL/cl2.hpp>
 
+//https://en.wikipedia.org/wiki/Leapfrog_integration
+
 class NBodySim2D {
 public:
     static std::vector<float> generateRandomLocations(uint32_t num_points);
 
+    bool init(cl_GLuint opengl_vertex_buffer_id, std::string& error_message);
+    bool updateLocations(std::string& error_message);
+
 private:
-    uint32_t m_num_points;
     cl::Context m_ocl_context;
     cl::CommandQueue m_ocl_cmd_queue;
     cl::Kernel m_ocl_kernel;
