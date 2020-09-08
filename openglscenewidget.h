@@ -1,24 +1,25 @@
 #ifndef OPENGLSCENEWIDGET_H
 #define OPENGLSCENEWIDGET_H
 
-#include <random>
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
 #include <QOpenGLBuffer>
 #include <QOpenGLShaderProgram>
 
-class OpenGLSceneWidget : public QOpenGLWidget, protected QOpenGLFunctions
-{
+class OpenGLSceneWidget : public QOpenGLWidget, protected QOpenGLFunctions {
+
     Q_OBJECT
 
 public:
-    static constexpr uint32_t NUM_POINTS = 10000;
-
     explicit OpenGLSceneWidget(QWidget* parent = nullptr);
     ~OpenGLSceneWidget();
+    bool initVertices(const std::vector<float>& vertices_data, QString& error_message);
+    GLuint getVertexBufferId() const;
 
 signals:
-    void openGlErrorOccurred(QString error_message);
+    void errorOccurred(const QString& error_message);
+    void openGlInitialized();
+    void openGlDestroyed();
 
 private:
     static constexpr float POINT_SIZE = 2.0f;

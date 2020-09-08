@@ -1,6 +1,4 @@
 #include <vector>
-#include <algorithm>
-#include <functional>
 #include "openglscenewidget.h"
 
 
@@ -14,6 +12,23 @@ OpenGLSceneWidget::~OpenGLSceneWidget()
     makeCurrent();
     destroyGL();
     doneCurrent();
+}
+
+bool OpenGLSceneWidget::initVertices(const std::vector<float>& vertices_data, QString& error_message)
+{
+    if (!m_vertex_buffer.bind()) {
+        error_message = "Cannot bind OpenGL vertex buffer.";
+        return false;
+    }
+
+    m_vertex_buffer.allocate(vertices_data.data(), static_cast<int>(vertices_data.size() * sizeof(float)));
+    m_vertex_buffer.release();
+    return true;
+}
+
+GLuint OpenGLSceneWidget::getVertexBufferId() const
+{
+    return m_vertex_buffer.bufferId();
 }
 
 float OpenGLSceneWidget::xScale(int w, int h)
@@ -47,40 +62,55 @@ void OpenGLSceneWidget::initializeGL()
     glEnable(GL_PROGRAM_POINT_SIZE);
 
     m_shader_program = new QOpenGLShaderProgram;
-    m_shader_program->addCacheableShaderFromSourceFile(QOpenGLShader::Vertex, ":/openglscenevertex.vert");
-    m_shader_program->addCacheableShaderFromSourceFile(QOpenGLShader::Fragment, ":/openglscenevertex.frag");
-    if (!m_shader_program->link()) {
+
+    if (!m_shader_program->addCacheableShaderFromSourceFile(QOpenGLShader::Vertex, ":/openglscenevertex.vert")) {
+        emit errorOccurred("OpenGL shader compile error: \"" + m_shader_program->log() + "\".");
         destroyGL();
-        emit openGlErrorOccurred(m_shader_program->log());
         return;
     }
 
-    m_shader_program->bind();
+    if (!m_shader_program->addCacheableShaderFromSourceFile(QOpenGLShader::Fragment, ":/openglscenevertex.frag")) {
+        emit errorOccurred("OpenGL shader compile error: \"" + m_shader_program->log() + "\".");
+        destroyGL();
+        return;
+    }
+
+    if (!m_shader_program->link()) {
+        emit errorOccurred("OpenGL shader compile error: \"" + m_shader_program->log() + "\".");
+        destroyGL();
+        return;
+    }
+
+    if (!m_shader_program->bind()) {
+        emit errorOccurred("Cannot bind OpenGL shader.");
+        destroyGL();
+        return;
+    }
+
     m_shader_program->setUniformValue("point_color", POINT_COLOR);
     m_shader_program->setUniformValue("point_size", POINT_SIZE);
     m_shader_program->release();
 
-    m_vertex_buffer.create();
-    m_vertex_buffer.bind();
-
-    std::random_device rand_device;
-    std::seed_seq rand_seed{ rand_device(), rand_device(), rand_device(), rand_device() };
-    std::mt19937 rand_gen(rand_seed);
-    std::uniform_real_distribution<float> rand_dist(-1.0f, 1.0f);
-    std::vector<float> vertices_data(NUM_POINTS * 2);
-    std::generate(vertices_data.begin(), vertices_data.end(), std::bind(rand_dist, rand_gen));
-
-    m_vertex_buffer.allocate(vertices_data.data(), static_cast<int>(vertices_data.size() * sizeof(float)));
-    m_vertex_buffer.release();
+    if (!m_vertex_buffer.create()) {
+        emit errorOccurred("Cannot create OpenGL vertex buffer.");
+        destroyGL();
+        return;
+    }
 
     m_opengl_initialized = true;
+    emit openGlInitialized();
 }
 
 void OpenGLSceneWidget::destroyGL()
 {
-    delete m_shader_program;
+    if (m_shader_program != nullptr) {
+        delete m_shader_program;
+        m_shader_program = nullptr;
+    }
+
     m_vertex_buffer.destroy();
     m_opengl_initialized = false;
+    emit openGlDestroyed();
 }
 
 void OpenGLSceneWidget::resizeGL(int w, int h)
@@ -89,7 +119,12 @@ void OpenGLSceneWidget::resizeGL(int w, int h)
         return;
     }
 
-    m_shader_program->bind();
+    if (!m_shader_program->bind()) {
+        emit errorOccurred("Cannot bind OpenGL shader.");
+        destroyGL();
+        return;
+    }
+
     m_shader_program->setUniformValue("x_scale", xScale(w, h));
     m_shader_program->setUniformValue("y_scale", yScale(w, h));
     m_shader_program->release();
@@ -103,10 +138,20 @@ void OpenGLSceneWidget::paintGL()
 
     glClear(GL_COLOR_BUFFER_BIT);
 
-    m_shader_program->bind();
+    if (!m_shader_program->bind()) {
+        emit errorOccurred("Cannot bind OpenGL shader.");
+        destroyGL();
+        return;
+    }
+
     m_shader_program->enableAttributeArray("position");
 
-    m_vertex_buffer.bind();
+    if (!m_vertex_buffer.bind()) {
+        emit errorOccurred("Cannot bind OpenGL vertex buffer.");
+        destroyGL();
+        return;
+    }
+
     m_shader_program->setAttributeBuffer("position", GL_FLOAT, 0, 2, 0);
 
     glDrawArrays(GL_POINTS, 0, m_vertex_buffer.size() / sizeof(float) / 2);

@@ -22,6 +22,12 @@ add_executable(NBody
     openglscenewidget.cpp
     openglscenewidget.h
     openglsceneresources.qrc
+    nbodysim2d.h
+    nbodysim2d.cpp
+    nbodysim2dresources.qrc
 )
 
-target_link_libraries(NBody PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(NBody PRIVATE
+    Qt${QT_VERSION_MAJOR}::Widgets
+    ${CMAKE_SOURCE_DIR}/CL/OpenCL.lib
+)

@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include "nbodysim2d.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -18,6 +19,12 @@ public:
 
 private:
     Ui::MainWindow* m_ui;
+    NBodySim2D m_nbodysim;
+
+private slots:
+    void openglSceneWidget_errorOccurred(const QString& error_message);
+    void openglSceneWidget_openGlInitialized();
+    void openglSceneWidget_openGlDestroyed();
 };
 
 #endif // MAINWINDOW_H
