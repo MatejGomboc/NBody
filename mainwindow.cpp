@@ -5,7 +5,8 @@
 
 MainWindow::MainWindow(QWidget* parent) :
     QMainWindow(parent),
-    m_ui(new Ui::MainWindow)
+    m_ui(new Ui::MainWindow),
+    m_rendering_timer(new QTimer(this))
 {
     m_ui->setupUi(this);
 
@@ -20,10 +21,15 @@ MainWindow::MainWindow(QWidget* parent) :
     connect(m_ui->central_widget, &OpenGLSceneWidget::openGlDestroyed,
         this, &MainWindow::openglSceneWidget_openGlDestroyed,
         Qt::ConnectionType::QueuedConnection);
+
+    connect(m_rendering_timer, &QTimer::timeout,
+        this, &MainWindow::rendering_timer_timeout,
+        Qt::ConnectionType::QueuedConnection);
 }
 
 MainWindow::~MainWindow()
 {
+    delete m_rendering_timer;
     delete m_ui;
 }
 
@@ -46,7 +52,7 @@ void MainWindow::openglSceneWidget_openGlInitialized()
     error_dialog.setModal(true);
     error_dialog.setTextInteractionFlags(Qt::TextSelectableByMouse);
 
-    std::vector<float> vertices_data = NBodySim2D::generateRandomLocations(1000);
+    std::vector<float> vertices_data = NBodySim2D::generateRandomLocations(NUM_POINTS);
 
     QString error_message_1;
     if (!m_ui->central_widget->initVertices(vertices_data, error_message_1)) {
@@ -83,15 +89,37 @@ void MainWindow::openglSceneWidget_openGlInitialized()
     opencl_source_file_leapfrog.close();
 
     std::string error_message_2;
-    if (!m_nbodysim.init(opencl_sources, m_ui->central_widget->getVertexBufferId(), vertices_data.size(), 1.0f, 0.1f, 0.001f, error_message_2)) {
+    if (!m_nbodysim.init(opencl_sources, m_ui->central_widget->getVertexBufferId(),
+        static_cast<uint32_t>(vertices_data.size()),
+        ATTRACTION, RADIUS, TIME_STEP, error_message_2)) {
         error_dialog.setWindowTitle("OpenCL error");
         error_dialog.setText(error_message_2.c_str());
         error_dialog.exec();
         QApplication::quit();
         return;
     }
+
+    m_rendering_timer->setSingleShot(false);
+    m_rendering_timer->setInterval(RENDER_UPDATE_TIME_MS);
+    m_rendering_timer->start();
 }
 
 void MainWindow::openglSceneWidget_openGlDestroyed()
 {
+    m_rendering_timer->stop();
+}
+
+void MainWindow::rendering_timer_timeout()
+{
+    std::string error_message;
+    if (!m_nbodysim.updateLocations(NUM_POINTS, error_message)) {
+        QMessageBox error_dialog(this);
+        error_dialog.setIcon(QMessageBox::Icon::Critical);
+        error_dialog.setModal(true);
+        error_dialog.setTextInteractionFlags(Qt::TextSelectableByMouse);
+        error_dialog.setWindowTitle("OpenCL error");
+        error_dialog.setText(error_message.c_str());
+        error_dialog.exec();
+        QApplication::quit();
+    }
 }

@@ -82,7 +82,7 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
         return false;
     }
 
-    ocl_err = ocl_program.build("-cl-std=CL1.1");
+    ocl_err = ocl_program.build(/*"-cl-std=CL1.1"*/);
     if (ocl_err != CL_SUCCESS) {
         error_message = "OpenCL build error: " + std::to_string(ocl_err) + "\n";
         auto build_info = ocl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>();
@@ -211,7 +211,80 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
 }
 
 
-bool NBodySim2D::updateLocations(std::string& error_message)
+bool NBodySim2D::updateLocations(uint32_t num_points, std::string& error_message)
 {
-    return false;
+    std::vector<cl::Memory> ogl_objects{ m_ocl_buffer_pos };
+    cl_int ocl_err = m_ocl_cmd_queue.enqueueAcquireGLObjects(&ogl_objects, nullptr, nullptr);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot acquire OpenGL objects. Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = cl::finish();
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot execute OpenCL finish. Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_cmd_queue.enqueueNDRangeKernel(m_ocl_kernel_gravity_accelerations, cl::NDRange(0), cl::NDRange(num_points), cl::NullRange, nullptr, nullptr);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot run OpenCL kernel (accelerations). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = cl::finish();
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot execute OpenCL finish. Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_cmd_queue.enqueueNDRangeKernel(m_ocl_kernel_leapfrog_positions, cl::NDRange(0), cl::NDRange(num_points), cl::NullRange, nullptr, nullptr);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot run OpenCL kernel (positions). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = cl::finish();
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot execute OpenCL finish. Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_cmd_queue.enqueueNDRangeKernel(m_ocl_kernel_gravity_accelerations, cl::NDRange(0), cl::NDRange(num_points), cl::NullRange, nullptr, nullptr);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot run OpenCL kernel (accelerations). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = cl::finish();
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot execute OpenCL finish. Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_cmd_queue.enqueueReleaseGLObjects(&ogl_objects, nullptr, nullptr);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot release OpenGL objects. Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = cl::finish();
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot execute OpenCL finish. Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_cmd_queue.enqueueNDRangeKernel(m_ocl_kernel_leapfrog_velocities, cl::NDRange(0), cl::NDRange(num_points), cl::NullRange, nullptr, nullptr);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot run OpenCL kernel (velocities). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = cl::finish();
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot execute OpenCL finish. Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    return true;
 }

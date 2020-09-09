@@ -14,7 +14,8 @@ public:
 
     bool init(const std::vector<std::string>& sources, cl_GLuint opengl_vertex_buffer_id,
         uint32_t num_points, float attraction, float radius, float time_step, std::string& error_message);
-    bool updateLocations(std::string& error_message);
+
+    bool updateLocations(uint32_t num_points, std::string& error_message);
 
 private:
     cl::Context m_ocl_context;
