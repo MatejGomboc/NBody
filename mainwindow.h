@@ -23,7 +23,7 @@ private:
     static constexpr float ATTRACTION = 100.0f;
     static constexpr float RADIUS = 0.01f;
     static constexpr float TIME_STEP = 0.1f;
-    static constexpr int RENDER_UPDATE_TIME_MS = 500;
+    static constexpr int RENDER_UPDATE_TIME_MS = 200;
 
     Ui::MainWindow* m_ui;
     NBodySim2D m_nbodysim;

@@ -91,7 +91,7 @@ void MainWindow::openglSceneWidget_openGlInitialized()
     std::string error_message_2;
     if (!m_nbodysim.init(opencl_sources, m_ui->central_widget->getVertexBufferId(),
         static_cast<uint32_t>(vertices_data.size()),
-        ATTRACTION, RADIUS, TIME_STEP, error_message_2)) {
+        ATTRACTION, RADIUS, TIME_STEP, 1.0f, 1.0f, error_message_2)) {
         error_dialog.setWindowTitle("OpenCL error");
         error_dialog.setText(error_message_2.c_str());
         error_dialog.exec();
@@ -122,4 +122,6 @@ void MainWindow::rendering_timer_timeout()
         error_dialog.exec();
         QApplication::quit();
     }
+
+    m_ui->central_widget->update();
 }

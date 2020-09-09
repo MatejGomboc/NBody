@@ -28,7 +28,8 @@ std::vector<float> NBodySim2D::generateRandomLocations(uint32_t num_points)
 
 
 bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_vertex_buffer_id,
-    uint32_t num_points, float attraction, float radius, float time_step, std::string& error_message)
+    uint32_t num_points, float attraction, float radius, float time_step, float max_pos, float max_vel,
+    std::string& error_message)
 {
     // find OpenCL platforms
     cl_int ocl_err = CL_SUCCESS;
@@ -134,69 +135,87 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
     // add arguments to "accelerations" kernel
     ocl_err = m_ocl_kernel_gravity_accelerations.setArg<cl::BufferGL>(0, m_ocl_buffer_pos);
     if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot add ardgument to OpenCL kernel (pos->accelerations). Error: " + std::to_string(ocl_err);
+        error_message = "Cannot add argument to OpenCL kernel (pos->accelerations). Error: " + std::to_string(ocl_err);
         return false;
     }
 
     ocl_err = m_ocl_kernel_gravity_accelerations.setArg<cl::Buffer>(1, m_ocl_buffer_acc);
     if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot add ardgument to OpenCL kernel (acc->accelerations). Error: " + std::to_string(ocl_err);
+        error_message = "Cannot add argument to OpenCL kernel (acc->accelerations). Error: " + std::to_string(ocl_err);
         return false;
     }
 
-    ocl_err = m_ocl_kernel_gravity_accelerations.setArg<const float>(2, attraction);
+    ocl_err = m_ocl_kernel_gravity_accelerations.setArg<float>(2, attraction);
     if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot add ardgument to OpenCL kernel (attr->accelerations). Error: " + std::to_string(ocl_err);
+        error_message = "Cannot add argument to OpenCL kernel (attr->accelerations). Error: " + std::to_string(ocl_err);
         return false;
     }
 
-    ocl_err = m_ocl_kernel_gravity_accelerations.setArg<const float>(3, radius);
+    ocl_err = m_ocl_kernel_gravity_accelerations.setArg<float>(3, radius);
     if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot add ardgument to OpenCL kernel (rad->accelerations). Error: " + std::to_string(ocl_err);
+        error_message = "Cannot add argument to OpenCL kernel (rad->accelerations). Error: " + std::to_string(ocl_err);
         return false;
     }
 
     // add arguments to "positions" kernel
     ocl_err = m_ocl_kernel_leapfrog_positions.setArg<cl::BufferGL>(0, m_ocl_buffer_pos);
     if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot add ardgument to OpenCL kernel (pos->positions). Error: " + std::to_string(ocl_err);
+        error_message = "Cannot add argument to OpenCL kernel (pos->positions). Error: " + std::to_string(ocl_err);
         return false;
     }
 
     ocl_err = m_ocl_kernel_leapfrog_positions.setArg<cl::Buffer>(1, m_ocl_buffer_vel);
     if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot add ardgument to OpenCL kernel (vel->positions). Error: " + std::to_string(ocl_err);
+        error_message = "Cannot add argument to OpenCL kernel (vel->positions). Error: " + std::to_string(ocl_err);
         return false;
     }
 
     ocl_err = m_ocl_kernel_leapfrog_positions.setArg<cl::Buffer>(2, m_ocl_buffer_acc);
     if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot add ardgument to OpenCL kernel (acc->positions). Error: " + std::to_string(ocl_err);
+        error_message = "Cannot add argument to OpenCL kernel (acc->positions). Error: " + std::to_string(ocl_err);
         return false;
     }
 
-    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<const float>(3, time_step);
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<float>(3, time_step);
     if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot add ardgument to OpenCL kernel (dt->positions). Error: " + std::to_string(ocl_err);
+        error_message = "Cannot add argument to OpenCL kernel (dt->positions). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<float>(4, max_pos);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add argument to OpenCL kernel (max_pos->positions). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<float>(5, max_vel);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add argument to OpenCL kernel (max_vel->positions). Error: " + std::to_string(ocl_err);
         return false;
     }
 
     // add arguments to "velocities" kernel
     ocl_err = m_ocl_kernel_leapfrog_velocities.setArg<cl::Buffer>(0, m_ocl_buffer_vel);
     if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot add ardgument to OpenCL kernel (vel->velocities). Error: " + std::to_string(ocl_err);
+        error_message = "Cannot add argument to OpenCL kernel (vel->velocities). Error: " + std::to_string(ocl_err);
         return false;
     }
 
     ocl_err = m_ocl_kernel_leapfrog_velocities.setArg<cl::Buffer>(1, m_ocl_buffer_acc);
     if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot add ardgument to OpenCL kernel (acc->velocities). Error: " + std::to_string(ocl_err);
+        error_message = "Cannot add argument to OpenCL kernel (acc->velocities). Error: " + std::to_string(ocl_err);
         return false;
     }
 
-    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg<const float>(2, time_step);
+    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg<float>(2, time_step);
     if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot add ardgument to OpenCL kernel (dt->velocities). Error: " + std::to_string(ocl_err);
+        error_message = "Cannot add argument to OpenCL kernel (dt->velocities). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg<float>(3, max_vel);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add argument to OpenCL kernel (max_vel->velocities). Error: " + std::to_string(ocl_err);
         return false;
     }
 
