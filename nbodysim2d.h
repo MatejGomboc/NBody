@@ -13,8 +13,7 @@ public:
     static std::vector<float> generateRandomLocations(uint32_t num_points);
 
     bool init(const std::vector<std::string>& sources, cl_GLuint opengl_vertex_buffer_id,
-        uint32_t num_points, float attraction, float radius, float time_step, float max_pos,
-        float max_vel, std::string& error_message);
+        uint32_t num_points, float attraction, float radius, float time_step, std::string& error_message);
 
     bool updateLocations(uint32_t num_points, std::string& error_message);
 

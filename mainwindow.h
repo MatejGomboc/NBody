@@ -19,11 +19,11 @@ public:
     ~MainWindow();
 
 private:
-    static constexpr uint32_t NUM_POINTS = 1000;
-    static constexpr float ATTRACTION = 100.0f;
-    static constexpr float RADIUS = 0.01f;
-    static constexpr float TIME_STEP = 0.1f;
-    static constexpr int RENDER_UPDATE_TIME_MS = 200;
+    static constexpr uint32_t NUM_POINTS = 10000;
+    static constexpr float ATTRACTION = 0.0001f;
+    static constexpr float RADIUS = 0.0001f;
+    static constexpr float TIME_STEP = 0.01f;
+    static constexpr int RENDER_UPDATE_TIME_MS = 100;
 
     Ui::MainWindow* m_ui;
     NBodySim2D m_nbodysim;

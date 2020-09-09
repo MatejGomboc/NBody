@@ -28,8 +28,7 @@ std::vector<float> NBodySim2D::generateRandomLocations(uint32_t num_points)
 
 
 bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_vertex_buffer_id,
-    uint32_t num_points, float attraction, float radius, float time_step, float max_pos, float max_vel,
-    std::string& error_message)
+    uint32_t num_points, float attraction, float radius, float time_step, std::string& error_message)
 {
     // find OpenCL platforms
     cl_int ocl_err = CL_SUCCESS;
@@ -83,7 +82,7 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
         return false;
     }
 
-    ocl_err = ocl_program.build(/*"-cl-std=CL1.1"*/);
+    ocl_err = ocl_program.build("-cl-std=CL1.1");
     if (ocl_err != CL_SUCCESS) {
         error_message = "OpenCL build error: " + std::to_string(ocl_err) + "\n";
         auto build_info = ocl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>();
@@ -119,7 +118,8 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
         return false;
     }
 
-    std::vector<float> velocities(num_points, 0.0f);
+    std::vector<float> velocities = generateRandomLocations(num_points);
+    std::transform(velocities.begin(), velocities.end(), velocities.begin(), [](float& value) { return value * 1000.0f; });
     m_ocl_buffer_vel = cl::Buffer(m_ocl_context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, velocities.size() * sizeof(float), velocities.data(), &ocl_err);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot create OpenCL buffer (velocities). Error: " + std::to_string(ocl_err);
@@ -182,13 +182,13 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
         return false;
     }
 
-    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<float>(4, max_pos);
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<float>(4, 1.0f);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add argument to OpenCL kernel (max_pos->positions). Error: " + std::to_string(ocl_err);
         return false;
     }
 
-    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<float>(5, max_vel);
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<float>(5, 1.0f);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add argument to OpenCL kernel (max_vel->positions). Error: " + std::to_string(ocl_err);
         return false;
@@ -213,7 +213,7 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
         return false;
     }
 
-    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg<float>(3, max_vel);
+    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg<float>(3, 1000.0f);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add argument to OpenCL kernel (max_vel->velocities). Error: " + std::to_string(ocl_err);
         return false;
