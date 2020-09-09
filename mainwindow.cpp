@@ -1,3 +1,4 @@
+#include <QFile>
 #include <QMessageBox>
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
@@ -40,30 +41,42 @@ void MainWindow::openglSceneWidget_errorOccurred(const QString& error_message)
 
 void MainWindow::openglSceneWidget_openGlInitialized()
 {
+    QMessageBox error_dialog(this);
+    error_dialog.setIcon(QMessageBox::Icon::Critical);
+    error_dialog.setModal(true);
+    error_dialog.setTextInteractionFlags(Qt::TextSelectableByMouse);
+
     std::vector<float> vertices_data = NBodySim2D::generateRandomLocations(100000);
 
     QString error_message_1;
     if (!m_ui->central_widget->initVertices(vertices_data, error_message_1)) {
-        QMessageBox error_dialog(this);
         error_dialog.setWindowTitle("OpenGL error");
-        error_dialog.setIcon(QMessageBox::Icon::Critical);
         error_dialog.setText(error_message_1);
-        error_dialog.setModal(true);
-        error_dialog.setTextInteractionFlags(Qt::TextSelectableByMouse);
         error_dialog.exec();
         QApplication::quit();
+        return;
     }
 
-    std::string error_message_2;
-    if (!m_nbodysim.init(m_ui->central_widget->getVertexBufferId(), error_message_2)) {
-        QMessageBox error_dialog(this);
+    QFile opencl_source_file(":/gravity.cl");
+    if (!opencl_source_file.open(QIODevice::ReadOnly)) {
         error_dialog.setWindowTitle("OpenCL error");
-        error_dialog.setIcon(QMessageBox::Icon::Critical);
-        error_dialog.setText(error_message_1);
-        error_dialog.setModal(true);
-        error_dialog.setTextInteractionFlags(Qt::TextSelectableByMouse);
+        error_dialog.setText("Cannot open OpenCL source file.");
         error_dialog.exec();
         QApplication::quit();
+        return;
+    }
+
+    std::vector<std::string> opencl_sources;
+    opencl_sources.push_back(opencl_source_file.readAll().toStdString());
+    opencl_source_file.close();
+
+    std::string error_message_2;
+    if (!m_nbodysim.init(opencl_sources, m_ui->central_widget->getVertexBufferId(), error_message_2)) {
+        error_dialog.setWindowTitle("OpenCL error");
+        error_dialog.setText(error_message_1);
+        error_dialog.exec();
+        QApplication::quit();
+        return;
     }
 }
 

@@ -24,7 +24,7 @@ std::vector<float> NBodySim2D::generateRandomLocations(uint32_t num_points)
     return vertices_data;
 }
 
-bool NBodySim2D::init(cl_GLuint opengl_vertex_buffer_id, std::string& error_message)
+bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_vertex_buffer_id, std::string& error_message)
 {
     cl_int ocl_err;
     std::vector<cl::Platform> ocl_platforms;
@@ -66,7 +66,7 @@ bool NBodySim2D::init(cl_GLuint opengl_vertex_buffer_id, std::string& error_mess
     }
 
     if (!error_message.empty()) {
-        error_message = "No OpenCL devices found.";
+        error_message = "No compatible OpenCL devices found.";
         return false;
     }
 
@@ -75,6 +75,18 @@ bool NBodySim2D::init(cl_GLuint opengl_vertex_buffer_id, std::string& error_mess
         error_message = "OpenCL error: " + std::to_string(ocl_err);
         return false;
     }
+
+    cl::Program ocl_program(m_ocl_context, sources, &ocl_err);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "OpenCL error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    /*ocl_err = ocl_program.build("-cl-std=CL1.0");
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "OpenCL error: " + std::to_string(ocl_err);
+        return false;
+    }*/
 
     return true;
 }
