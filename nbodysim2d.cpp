@@ -75,13 +75,6 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
         return false;
     }
 
-    // create OpenCL command queue
-    m_ocl_cmd_queue = cl::CommandQueue(m_ocl_context, cl::QueueProperties::None, &ocl_err);
-    if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot create OpenCL command queue. Error: " + std::to_string(ocl_err);
-        return false;
-    }
-
     // compile OpenCL program
     cl::Program ocl_program(m_ocl_context, sources, &ocl_err);
     if (ocl_err != CL_SUCCESS) {
@@ -139,13 +132,13 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
     }
 
     // add arguments to "accelerations" kernel
-    ocl_err = m_ocl_kernel_gravity_accelerations.setArg(0, sizeof(cl_mem), m_ocl_buffer_pos.get());
+    ocl_err = m_ocl_kernel_gravity_accelerations.setArg<cl::BufferGL>(0, m_ocl_buffer_pos);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add ardgument to OpenCL kernel (pos->accelerations). Error: " + std::to_string(ocl_err);
         return false;
     }
 
-    ocl_err = m_ocl_kernel_gravity_accelerations.setArg(1, sizeof(cl_mem), m_ocl_buffer_acc.get());
+    ocl_err = m_ocl_kernel_gravity_accelerations.setArg<cl::Buffer>(1, m_ocl_buffer_acc);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add ardgument to OpenCL kernel (acc->accelerations). Error: " + std::to_string(ocl_err);
         return false;
@@ -164,19 +157,19 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
     }
 
     // add arguments to "positions" kernel
-    ocl_err = m_ocl_kernel_leapfrog_positions.setArg(0, sizeof(cl_mem), m_ocl_buffer_pos.get());
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<cl::BufferGL>(0, m_ocl_buffer_pos);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add ardgument to OpenCL kernel (pos->positions). Error: " + std::to_string(ocl_err);
         return false;
     }
 
-    ocl_err = m_ocl_kernel_leapfrog_positions.setArg(1, sizeof(cl_mem), m_ocl_buffer_vel.get());
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<cl::Buffer>(1, m_ocl_buffer_vel);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add ardgument to OpenCL kernel (vel->positions). Error: " + std::to_string(ocl_err);
         return false;
     }
 
-    ocl_err = m_ocl_kernel_leapfrog_positions.setArg(2, sizeof(cl_mem), m_ocl_buffer_acc.get());
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<cl::Buffer>(2, m_ocl_buffer_acc);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add ardgument to OpenCL kernel (acc->positions). Error: " + std::to_string(ocl_err);
         return false;
@@ -189,13 +182,13 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
     }
 
     // add arguments to "velocities" kernel
-    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg(0, sizeof(cl_mem), m_ocl_buffer_vel.get());
+    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg<cl::Buffer>(0, m_ocl_buffer_vel);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add ardgument to OpenCL kernel (vel->velocities). Error: " + std::to_string(ocl_err);
         return false;
     }
 
-    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg(1, sizeof(cl_mem), m_ocl_buffer_acc.get());
+    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg<cl::Buffer>(1, m_ocl_buffer_acc);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add ardgument to OpenCL kernel (acc->velocities). Error: " + std::to_string(ocl_err);
         return false;
@@ -204,6 +197,13 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
     ocl_err = m_ocl_kernel_leapfrog_velocities.setArg<const float>(2, time_step);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add ardgument to OpenCL kernel (dt->velocities). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    // create OpenCL command queue
+    m_ocl_cmd_queue = cl::CommandQueue(m_ocl_context, cl::QueueProperties::None, &ocl_err);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot create OpenCL command queue. Error: " + std::to_string(ocl_err);
         return false;
     }
 
