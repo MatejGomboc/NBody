@@ -3,6 +3,7 @@
 #include <functional>
 #include "nbodysim2d.h"
 
+
 #ifdef _WIN32
 #define WINDOWS_LEAN_AND_MEAN
 #define NOMINMAX
@@ -12,6 +13,7 @@
 #ifdef __linux__
 #include <GL/glx.h>
 #endif
+
 
 std::vector<float> NBodySim2D::generateRandomLocations(uint32_t num_points)
 {
@@ -24,9 +26,12 @@ std::vector<float> NBodySim2D::generateRandomLocations(uint32_t num_points)
     return vertices_data;
 }
 
-bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_vertex_buffer_id, std::string& error_message)
+
+bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_vertex_buffer_id,
+    uint32_t num_points, float attraction, float radius, float time_step, std::string& error_message)
 {
-    cl_int ocl_err;
+    // find OpenCL platforms
+    cl_int ocl_err = CL_SUCCESS;
     std::vector<cl::Platform> ocl_platforms;
     cl::Platform::get(&ocl_platforms);
 
@@ -35,8 +40,9 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
         return false;
     }
 
+    // find compatible OpenCL device and create OpenCL context
     for (const cl::Platform& ocl_platform : ocl_platforms) {
-        error_message.clear();
+        ocl_err = CL_SUCCESS;
 
 #ifdef _WIN32
         cl_context_properties ocl_context_props[] = {
@@ -58,38 +64,152 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
 
         m_ocl_context = cl::Context(CL_DEVICE_TYPE_ALL, ocl_context_props, nullptr, nullptr, &ocl_err);
         if (ocl_err != CL_SUCCESS) {
-            error_message = "OpenCL error: " + std::to_string(ocl_err);
             continue;
         }
 
         break;
     }
 
-    if (!error_message.empty()) {
+    if (ocl_err != CL_SUCCESS) {
         error_message = "No compatible OpenCL devices found.";
         return false;
     }
 
+    // create OpenCL command queue
     m_ocl_cmd_queue = cl::CommandQueue(m_ocl_context, cl::QueueProperties::None, &ocl_err);
     if (ocl_err != CL_SUCCESS) {
-        error_message = "OpenCL error: " + std::to_string(ocl_err);
+        error_message = "Cannot create OpenCL command queue. Error: " + std::to_string(ocl_err);
         return false;
     }
 
+    // compile OpenCL program
     cl::Program ocl_program(m_ocl_context, sources, &ocl_err);
     if (ocl_err != CL_SUCCESS) {
-        error_message = "OpenCL error: " + std::to_string(ocl_err);
+        error_message = "Cannot create OpenCL program. Error: " + std::to_string(ocl_err);
         return false;
     }
 
-    /*ocl_err = ocl_program.build("-cl-std=CL1.0");
+    ocl_err = ocl_program.build("-cl-std=CL1.1");
     if (ocl_err != CL_SUCCESS) {
-        error_message = "OpenCL error: " + std::to_string(ocl_err);
+        error_message = "OpenCL build error: " + std::to_string(ocl_err) + "\n";
+        auto build_info = ocl_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>();
+        for (auto& device_log_pair : build_info) {
+            error_message += device_log_pair.second + "\n";
+        }
         return false;
-    }*/
+    }
+
+    // create OpenCL kernels
+    m_ocl_kernel_gravity_accelerations = cl::Kernel(ocl_program, "accelerations", &ocl_err);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot create OpenCL kernel (accelerations). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    m_ocl_kernel_leapfrog_positions = cl::Kernel(ocl_program, "positions", &ocl_err);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot create OpenCL kernel (positions). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    m_ocl_kernel_leapfrog_velocities = cl::Kernel(ocl_program, "velocities", &ocl_err);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot create OpenCL kernel (velocities). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    // create OpenCL buffers
+    m_ocl_buffer_pos = cl::BufferGL(m_ocl_context, CL_MEM_READ_WRITE, opengl_vertex_buffer_id, &ocl_err);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot create OpenCL buffer (positions). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    std::vector<float> velocities(num_points, 0.0f);
+    m_ocl_buffer_vel = cl::Buffer(m_ocl_context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, velocities.size() * sizeof(float), velocities.data(), &ocl_err);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot create OpenCL buffer (velocities). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    m_ocl_buffer_acc = cl::Buffer(m_ocl_context, CL_MEM_READ_WRITE, num_points * sizeof(float), nullptr, &ocl_err);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot create OpenCL buffer (accelerations). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    // add arguments to "accelerations" kernel
+    ocl_err = m_ocl_kernel_gravity_accelerations.setArg(0, sizeof(cl_mem), m_ocl_buffer_pos.get());
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add ardgument to OpenCL kernel (pos->accelerations). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_kernel_gravity_accelerations.setArg(1, sizeof(cl_mem), m_ocl_buffer_acc.get());
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add ardgument to OpenCL kernel (acc->accelerations). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_kernel_gravity_accelerations.setArg<const float>(2, attraction);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add ardgument to OpenCL kernel (attr->accelerations). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_kernel_gravity_accelerations.setArg<const float>(3, radius);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add ardgument to OpenCL kernel (rad->accelerations). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    // add arguments to "positions" kernel
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg(0, sizeof(cl_mem), m_ocl_buffer_pos.get());
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add ardgument to OpenCL kernel (pos->positions). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg(1, sizeof(cl_mem), m_ocl_buffer_vel.get());
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add ardgument to OpenCL kernel (vel->positions). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg(2, sizeof(cl_mem), m_ocl_buffer_acc.get());
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add ardgument to OpenCL kernel (acc->positions). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<const float>(3, time_step);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add ardgument to OpenCL kernel (dt->positions). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    // add arguments to "velocities" kernel
+    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg(0, sizeof(cl_mem), m_ocl_buffer_vel.get());
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add ardgument to OpenCL kernel (vel->velocities). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg(1, sizeof(cl_mem), m_ocl_buffer_acc.get());
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add ardgument to OpenCL kernel (acc->velocities). Error: " + std::to_string(ocl_err);
+        return false;
+    }
+
+    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg<const float>(2, time_step);
+    if (ocl_err != CL_SUCCESS) {
+        error_message = "Cannot add ardgument to OpenCL kernel (dt->velocities). Error: " + std::to_string(ocl_err);
+        return false;
+    }
 
     return true;
 }
+
 
 bool NBodySim2D::updateLocations(std::string& error_message)
 {
