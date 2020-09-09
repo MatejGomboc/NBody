@@ -36,21 +36,31 @@ GLuint OpenGLSceneWidget::getVertexBufferId() const
     return m_vertex_buffer.bufferId();
 }
 
+void OpenGLSceneWidget::setZoom(float zoom)
+{
+    m_zoom = zoom;
+}
+
+float OpenGLSceneWidget::getZoom() const
+{
+    return m_zoom;
+}
+
 float OpenGLSceneWidget::xScale(int w, int h)
 {
     if (w > h) {
-        return static_cast<float>(h) / static_cast<float>(w);
+        return static_cast<float>(h) / static_cast<float>(w) / m_zoom;
     } else {
-        return 1.0f;
+        return 1.0f / m_zoom;
     }
 }
 
 float OpenGLSceneWidget::yScale(int w, int h)
 {
     if (h > w) {
-        return static_cast<float>(w) / static_cast<float>(h);
+        return static_cast<float>(w) / static_cast<float>(h) / m_zoom;
     } else {
-        return 1.0f;
+        return 1.0f / m_zoom;
     }
 }
 

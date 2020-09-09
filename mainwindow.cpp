@@ -52,7 +52,7 @@ void MainWindow::openglSceneWidget_openGlInitialized()
     error_dialog.setModal(true);
     error_dialog.setTextInteractionFlags(Qt::TextSelectableByMouse);
 
-    std::vector<float> vertices_data = NBodySim2D::generateRandomLocations(NUM_POINTS);
+    std::vector<float> vertices_data = NBodySim2D::generateRandomLocations(NUM_POINTS, MAX_DISTANCE);
 
     QString error_message_1;
     if (!m_ui->central_widget->initVertices(vertices_data, error_message_1)) {
@@ -90,8 +90,8 @@ void MainWindow::openglSceneWidget_openGlInitialized()
 
     std::string error_message_2;
     if (!m_nbodysim.init(opencl_sources, m_ui->central_widget->getVertexBufferId(),
-        static_cast<uint32_t>(vertices_data.size()),
-        ATTRACTION, RADIUS, TIME_STEP, error_message_2)) {
+        static_cast<uint32_t>(vertices_data.size()), ATTRACTION, RADIUS, TIME_STEP,
+        MAX_DISTANCE, MAX_VELOCITY, error_message_2)) {
         error_dialog.setWindowTitle("OpenCL error");
         error_dialog.setText(error_message_2.c_str());
         error_dialog.exec();
@@ -102,6 +102,8 @@ void MainWindow::openglSceneWidget_openGlInitialized()
     m_rendering_timer->setSingleShot(false);
     m_rendering_timer->setInterval(RENDER_UPDATE_TIME_MS);
     m_rendering_timer->start();
+
+    m_ui->central_widget->setZoom(MAX_DISTANCE);
 }
 
 void MainWindow::openglSceneWidget_openGlDestroyed()

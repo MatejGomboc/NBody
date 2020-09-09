@@ -15,6 +15,8 @@ public:
     ~OpenGLSceneWidget();
     bool initVertices(const std::vector<float>& vertices_data, QString& error_message);
     GLuint getVertexBufferId() const;
+    void setZoom(float zoom);
+    float getZoom() const;
 
 signals:
     void errorOccurred(const QString& error_message);
@@ -28,9 +30,10 @@ private:
     bool m_opengl_initialized = false;
     QOpenGLShaderProgram* m_shader_program = nullptr;
     QOpenGLBuffer m_vertex_buffer = QOpenGLBuffer(QOpenGLBuffer::Type::VertexBuffer);
+    float m_zoom = 1.0f;
 
-    static float xScale(int w, int h);
-    static float yScale(int w, int h);
+    float xScale(int w, int h);
+    float yScale(int w, int h);
 
     void initializeGL() override;
     void destroyGL();

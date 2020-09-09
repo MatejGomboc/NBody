@@ -15,20 +15,21 @@
 #endif
 
 
-std::vector<float> NBodySim2D::generateRandomLocations(uint32_t num_points)
+std::vector<float> NBodySim2D::generateRandomLocations(uint32_t num_points, float max_value)
 {
     std::vector<float> vertices_data(num_points * 2);
     std::random_device rand_device;
     std::seed_seq rand_seed{ rand_device(), rand_device(), rand_device(), rand_device(), rand_device() };
     std::mt19937 rand_gen(rand_seed);
-    std::uniform_real_distribution<float> rand_dist(-1.0f, 1.0f);
+    std::uniform_real_distribution<float> rand_dist(-max_value, max_value);
     std::generate(vertices_data.begin(), vertices_data.end(), std::bind(rand_dist, rand_gen));
     return vertices_data;
 }
 
 
 bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_vertex_buffer_id,
-    uint32_t num_points, float attraction, float radius, float time_step, std::string& error_message)
+    uint32_t num_points, float attraction, float radius, float time_step, float max_pos,
+    float max_vel, std::string& error_message)
 {
     // find OpenCL platforms
     cl_int ocl_err = CL_SUCCESS;
@@ -118,8 +119,7 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
         return false;
     }
 
-    std::vector<float> velocities = generateRandomLocations(num_points);
-    std::transform(velocities.begin(), velocities.end(), velocities.begin(), [](float& value) { return value * 1000.0f; });
+    std::vector<float> velocities = generateRandomLocations(num_points, max_pos);
     m_ocl_buffer_vel = cl::Buffer(m_ocl_context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, velocities.size() * sizeof(float), velocities.data(), &ocl_err);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot create OpenCL buffer (velocities). Error: " + std::to_string(ocl_err);
@@ -182,13 +182,13 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
         return false;
     }
 
-    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<float>(4, 1.0f);
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<float>(4, max_pos);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add argument to OpenCL kernel (max_pos->positions). Error: " + std::to_string(ocl_err);
         return false;
     }
 
-    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<float>(5, 1.0f);
+    ocl_err = m_ocl_kernel_leapfrog_positions.setArg<float>(5, max_vel);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add argument to OpenCL kernel (max_vel->positions). Error: " + std::to_string(ocl_err);
         return false;
@@ -213,7 +213,7 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
         return false;
     }
 
-    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg<float>(3, 1000.0f);
+    ocl_err = m_ocl_kernel_leapfrog_velocities.setArg<float>(3, max_vel);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot add argument to OpenCL kernel (max_vel->velocities). Error: " + std::to_string(ocl_err);
         return false;
@@ -239,21 +239,9 @@ bool NBodySim2D::updateLocations(uint32_t num_points, std::string& error_message
         return false;
     }
 
-    ocl_err = cl::finish();
-    if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot execute OpenCL finish. Error: " + std::to_string(ocl_err);
-        return false;
-    }
-
     ocl_err = m_ocl_cmd_queue.enqueueNDRangeKernel(m_ocl_kernel_gravity_accelerations, cl::NDRange(0), cl::NDRange(num_points), cl::NullRange, nullptr, nullptr);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot run OpenCL kernel (accelerations). Error: " + std::to_string(ocl_err);
-        return false;
-    }
-
-    ocl_err = cl::finish();
-    if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot execute OpenCL finish. Error: " + std::to_string(ocl_err);
         return false;
     }
 
@@ -263,33 +251,15 @@ bool NBodySim2D::updateLocations(uint32_t num_points, std::string& error_message
         return false;
     }
 
-    ocl_err = cl::finish();
-    if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot execute OpenCL finish. Error: " + std::to_string(ocl_err);
-        return false;
-    }
-
     ocl_err = m_ocl_cmd_queue.enqueueNDRangeKernel(m_ocl_kernel_gravity_accelerations, cl::NDRange(0), cl::NDRange(num_points), cl::NullRange, nullptr, nullptr);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot run OpenCL kernel (accelerations). Error: " + std::to_string(ocl_err);
         return false;
     }
 
-    ocl_err = cl::finish();
-    if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot execute OpenCL finish. Error: " + std::to_string(ocl_err);
-        return false;
-    }
-
     ocl_err = m_ocl_cmd_queue.enqueueReleaseGLObjects(&ogl_objects, nullptr, nullptr);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot release OpenGL objects. Error: " + std::to_string(ocl_err);
-        return false;
-    }
-
-    ocl_err = cl::finish();
-    if (ocl_err != CL_SUCCESS) {
-        error_message = "Cannot execute OpenCL finish. Error: " + std::to_string(ocl_err);
         return false;
     }
 

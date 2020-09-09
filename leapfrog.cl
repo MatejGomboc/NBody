@@ -12,18 +12,22 @@ kernel void positions(global float2* pos, global float2* vel, global float2* acc
 
     if (pos[i].x > max_pos) {
         pos[i].x = max_pos;
+        vel[i].x *= -1.0f;
     }
 
     if (pos[i].x < -max_pos) {
         pos[i].x = -max_pos;
+        vel[i].x *= -1.0f;
     }
 
     if (pos[i].y > max_pos) {
         pos[i].y = max_pos;
+        vel[i].y *= -1.0f;
     }
 
     if (pos[i].y < -max_pos) {
         pos[i].y = -max_pos;
+        vel[i].y *= -1.0f;
     }
 }
 
