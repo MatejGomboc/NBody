@@ -20,11 +20,13 @@ public:
 
 private:
     static constexpr uint32_t NUM_POINTS = 1000;
-    static constexpr float ATTRACTION = 1.5e-16f; // Newton's gravity constant [light years^3 / sun mass / year^2]
-    static constexpr float RADIUS = 7.0e-8f; // sun radius [light years]
-    static constexpr float TIME_STEP = 10.0f; // years
+    static constexpr float ATTRACTION = 1.5e-16f; // Newton's gravity constant * Sun's mass [light years^3 / sun mass / year^2]
+    static constexpr float RADIUS = 7.0e-8f; // Sun's radius [light years]
+    static constexpr float TIME_STEP = 100000.0f; // years
     static constexpr float MAX_VELOCITY = 0.3f; // light speed [light years / years]
-    static constexpr float MAX_DISTANCE = 1000.0f; // [light years]
+    static constexpr float MAX_DISTANCE = 10000.0f; // [light years]
+    static constexpr float MAX_START_VELOCITY = 0.0001f; // 100m/s [light years / years]
+    static constexpr float MAX_START_DISTANCE = 5000.0f; // [light years]
     static constexpr int RENDER_UPDATE_TIME_MS = 100;
 
     Ui::MainWindow* m_ui;

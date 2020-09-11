@@ -28,10 +28,10 @@ std::vector<float> NBodySim2D::generateRandomLocations(uint32_t num_points, floa
 
 bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_vertex_buffer_id,
     uint32_t num_points, float attraction, float radius, float time_step, float max_pos,
-    float max_vel, std::string& error_message)
+    float max_vel, float max_start_vel, std::string& error_message)
 {
     // find OpenCL platforms
-    cl_int ocl_err = CL_SUCCESS;
+    cl_int ocl_err;
     std::vector<cl::Platform> ocl_platforms;
     cl::Platform::get(&ocl_platforms);
 
@@ -42,8 +42,6 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
 
     // find compatible OpenCL device and create OpenCL context
     for (const cl::Platform& ocl_platform : ocl_platforms) {
-        ocl_err = CL_SUCCESS;
-
 #ifdef _WIN32
         cl_context_properties ocl_context_props[] = {
             CL_GL_CONTEXT_KHR, reinterpret_cast<cl_context_properties>(wglGetCurrentContext()),
@@ -118,7 +116,7 @@ bool NBodySim2D::init(const std::vector<std::string>& sources, cl_GLuint opengl_
         return false;
     }
 
-    std::vector<float> velocities = generateRandomLocations(num_points, max_pos);
+    std::vector<float> velocities = generateRandomLocations(num_points, max_start_vel);
     m_ocl_buffer_vel = cl::Buffer(m_ocl_context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, velocities.size() * sizeof(float), velocities.data(), &ocl_err);
     if (ocl_err != CL_SUCCESS) {
         error_message = "Cannot create OpenCL buffer (velocities). Error: " + std::to_string(ocl_err);
