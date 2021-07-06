@@ -1,34 +1,34 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.19.2)
 
 project(NBody LANGUAGES CXX)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets REQUIRED)
-find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets REQUIRED)
-
-add_executable(NBody
+add_executable(NBody 
     main.cpp
-    mainwindow.cpp
-    mainwindow.h
-    mainwindow.ui
-    openglscenewidget.cpp
-    openglscenewidget.h
-    openglsceneresources.qrc
-    nbodysim2d.h
-    nbodysim2d.cpp
-    nbodysim2dresources.qrc
 )
 
+target_compile_definitions(NBody PRIVATE
+    CL_HPP_MINIMUM_OPENCL_VERSION=110
+    CL_HPP_TARGET_OPENCL_VERSION=110
+)
+
+if(CMAKE_GENERATOR MATCHES "Visual Studio")
+    set(OPENCL_COPY_DIR "${PROJECT_BINARY_DIR}/$<CONFIG>")
+else()
+    set(OPENCL_COPY_DIR ${PROJECT_BINARY_DIR})
+endif()
+
+add_subdirectory(OpenCL)
+
 target_link_libraries(NBody PRIVATE
-    Qt${QT_VERSION_MAJOR}::Widgets
-    ${CMAKE_SOURCE_DIR}/CL/OpenCL.lib
-    Opengl32.lib
+    OpenCL
+)
+
+add_dependencies(NBody
+    OpenCLCopy
 )

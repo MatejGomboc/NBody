@@ -1,6 +1,0 @@
-<RCC>
-    <qresource prefix="/">
-        <file>gravity.cl</file>
-        <file>leapfrog.cl</file>
-    </qresource>
-</RCC>

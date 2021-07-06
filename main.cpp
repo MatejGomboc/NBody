@@ -1,10 +1,10 @@
-#include <QApplication>
-#include "mainwindow.h"
+#include <iostream>
+#include <CL/opencl.hpp>
 
-int main(int argc, char* argv[])
+using namespace std;
+
+int main()
 {
-    QApplication a(argc, argv);
-    MainWindow w;
-    w.showMaximized();
-    return a.exec();
+    cout << "Hello World!" << endl;
+    return 0;
 }

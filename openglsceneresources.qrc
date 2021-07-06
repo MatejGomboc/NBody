@@ -1,6 +1,0 @@
-<RCC>
-    <qresource prefix="/">
-        <file>openglscenevertex.frag</file>
-        <file>openglscenevertex.vert</file>
-    </qresource>
-</RCC>
