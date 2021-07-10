@@ -15,12 +15,22 @@ set_target_properties(OpenCL PROPERTIES IMPORTED_LOCATION_MINSIZEREL "${PROJECT_
 set_target_properties(OpenCL PROPERTIES IMPORTED_IMPLIB_RELWITHDEBINFO "${PROJECT_SOURCE_DIR}/lib/Windows/RelWithDebInfo/OpenCL.lib")
 set_target_properties(OpenCL PROPERTIES IMPORTED_LOCATION_RELWITHDEBINFO "${PROJECT_SOURCE_DIR}/lib/Windows/RelWithDebInfo/OpenCL.dll")
 
-add_custom_target(OpenCLCopy 
+add_custom_target(OpenCLMkdir
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${OPENCL_COPY_DIR}/
+    VERBATIM
+)
+
+add_custom_target(OpenCLCopy
+    WORKING_DIRECTORY ${OPENCL_COPY_DIR}/
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${PROJECT_SOURCE_DIR}/lib/Windows/$<CONFIG>/OpenCL.dll"
         "$<$<CONFIG:Debug>:${PROJECT_SOURCE_DIR}/lib/Windows/$<CONFIG>/OpenCL.pdb>"
         "$<$<CONFIG:RelWithDebInfo>:${PROJECT_SOURCE_DIR}/lib/Windows/$<CONFIG>/OpenCL.pdb>"
         ${OPENCL_COPY_DIR}/
-    BYPRODUCTS ${OPENCL_COPY_DIR}/OpenCL.dll ${OPENCL_COPY_DIR}/OpenCL.pdb
+    BYPRODUCTS OpenCL.dll OpenCL.pdb
     VERBATIM
+)
+
+add_dependencies(OpenCLCopy
+    OpenCLMkdir
 )
