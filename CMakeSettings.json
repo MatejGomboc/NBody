@@ -1,0 +1,18 @@
+﻿{
+  "configurations": [
+    {
+      "buildRoot": "${projectDir}-${name}",
+      "configurationType": "Debug",
+      "generator": "Ninja",
+      "inheritEnvironments": [ "msvc_x64_x64" ],
+      "name": "x64-Debug"
+    },
+    {
+      "buildRoot": "${projectDir}-${name}",
+      "configurationType": "Release",
+      "generator": "Ninja",
+      "inheritEnvironments": [ "msvc_x64_x64" ],
+      "name": "x64-Release"
+    }
+  ]
+}
