@@ -14,6 +14,7 @@ struct OclDeviceData {
     cl::Event copy_to_gpu_finish_event;
     cl::Event calculate_finish_event;
     cl::Event copy_from_gpu_finish_event;
+    float load_fraction;
 };
 
 static void CL_CALLBACK on_ocl_context_error(const char* errinfo, const void* private_info, rsize_t cb, void* user_data)
@@ -85,7 +86,7 @@ int main()
                 return EXIT_FAILURE;
             }
 
-            cl::CommandQueue ocl_command_queue(ocl_context, ocl_device, cl::QueueProperties::None, &ocl_err);
+            cl::CommandQueue ocl_command_queue(ocl_context, ocl_device, cl::QueueProperties::Profiling, &ocl_err);
             if (ocl_err != CL_SUCCESS) {
                 std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
                 return EXIT_FAILURE;
@@ -169,19 +170,54 @@ int main()
 
     /**********************************************************/
 
-    std::vector<float> test_data(1e7, 0.0f);
-    size_t part_size = test_data.size() / ocl_devices_data.size();
-    size_t last_part_size = test_data.size() - (ocl_devices_data.size() - 1) * part_size;
+    for (size_t i = 0; i < ocl_devices_data.size(); i++) {
+        cl_uint max_ocl_workgroups = ocl_devices_data[i].device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>(&ocl_err);
+        if (ocl_err != CL_SUCCESS) {
+            std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
+            return EXIT_FAILURE;
+        }
+
+        size_t max_workgroup_size = ocl_devices_data[i].device.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>(&ocl_err);
+        if (ocl_err != CL_SUCCESS) {
+            std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
+            return EXIT_FAILURE;
+        }
+
+        cl_uint max_clk_frequency = ocl_devices_data[i].device.getInfo<CL_DEVICE_MAX_CLOCK_FREQUENCY>(&ocl_err);
+        if (ocl_err != CL_SUCCESS) {
+            std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
+            return EXIT_FAILURE;
+        }
+
+        bool is_integrated = ocl_devices_data[i].device.getInfo<CL_DEVICE_HOST_UNIFIED_MEMORY>(&ocl_err);
+        if (ocl_err != CL_SUCCESS) {
+            std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
+            return EXIT_FAILURE;
+        }
+
+        ocl_devices_data[i].load_fraction = max_clk_frequency * max_workgroup_size * max_ocl_workgroups;
+
+        if (is_integrated) {
+            ocl_devices_data[i].load_fraction *= 2.0f;
+        }
+    }
+
+    float total_load = 0;
+    for (size_t i = 0; i < ocl_devices_data.size(); i++) {
+        total_load += ocl_devices_data[i].load_fraction;
+    }
 
     for (size_t i = 0; i < ocl_devices_data.size(); i++) {
-        size_t current_part_size;
-        if (i == ocl_devices_data.size() - 1) {
-            current_part_size = last_part_size;
-        }
-        else {
-            current_part_size = part_size;
-        }
+        ocl_devices_data[i].load_fraction /= total_load;
+    }
 
+    /**********************************************************/
+
+    std::vector<float> test_data(1e6, 0.0f);
+
+    for (size_t i = 0; i < ocl_devices_data.size(); i++) {
+        size_t current_part_size = test_data.size() * ocl_devices_data[i].load_fraction;
+        
         ocl_devices_data[i].buffer = cl::Buffer(ocl_devices_data[i].context, CL_MEM_READ_WRITE,
             current_part_size * sizeof(float), nullptr, &ocl_err);
         if (ocl_err != CL_SUCCESS) {
@@ -198,19 +234,14 @@ int main()
 
     /***********************************************************/
 
-    std::chrono::steady_clock::time_point time_start = std::chrono::high_resolution_clock::now();
+    std::chrono::steady_clock::time_point time_total_start = std::chrono::high_resolution_clock::now();
 
+    float* current_part_start = test_data.data();
     for (size_t i = 0; i < ocl_devices_data.size(); i++) {
-        size_t current_part_size;
-        if (i == ocl_devices_data.size() - 1) {
-            current_part_size = last_part_size;
-        }
-        else {
-            current_part_size = part_size;
-        }
+        size_t current_part_size = test_data.size() * ocl_devices_data[i].load_fraction;
 
-        ocl_err = ocl_devices_data[i].command_queue.enqueueWriteBuffer(ocl_devices_data[i].buffer, false, 0, current_part_size * sizeof(float),
-            test_data.data() + part_size * i, nullptr, &ocl_devices_data[i].copy_to_gpu_finish_event);
+        ocl_err = ocl_devices_data[i].command_queue.enqueueWriteBuffer(ocl_devices_data[i].buffer, false, 0, current_part_size * sizeof(float), 
+            current_part_start, nullptr, &ocl_devices_data[i].copy_to_gpu_finish_event);
         if (ocl_err != CL_SUCCESS) {
             std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
             return EXIT_FAILURE;
@@ -226,11 +257,13 @@ int main()
 
         std::vector<cl::Event> calculate_finish_events({ ocl_devices_data[i].calculate_finish_event });
         ocl_err = ocl_devices_data[i].command_queue.enqueueReadBuffer(ocl_devices_data[i].buffer, false, 0, current_part_size * sizeof(float),
-            test_data.data() + part_size * i, &calculate_finish_events, &ocl_devices_data[i].copy_from_gpu_finish_event);
+            current_part_start, &calculate_finish_events, &ocl_devices_data[i].copy_from_gpu_finish_event);
         if (ocl_err != CL_SUCCESS) {
             std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
             return EXIT_FAILURE;
         }
+
+        current_part_start += current_part_size;
     }
 
     for (size_t i = 0; i < ocl_devices_data.size(); i++) {
@@ -241,9 +274,25 @@ int main()
         }
     }
 
-    std::chrono::steady_clock::time_point time_end = std::chrono::high_resolution_clock::now();
+    std::chrono::steady_clock::time_point time_total_end = std::chrono::high_resolution_clock::now();
 
-    std::cout << "Duration: " << std::chrono::duration<double, std::milli>(time_end - time_start).count() << std::endl;
+    std::cout << "total duration (ms): " << std::chrono::duration<double, std::milli>(time_total_end - time_total_start).count() << std::endl;
+
+    for (size_t i = 0; i < ocl_devices_data.size(); i++) {
+        cl_ulong time_part_start_ns = ocl_devices_data[i].calculate_finish_event.getProfilingInfo<CL_PROFILING_COMMAND_START>(&ocl_err);
+        if (ocl_err != CL_SUCCESS) {
+            std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
+            return EXIT_FAILURE;
+        }
+
+        cl_ulong time_part_end_ns = ocl_devices_data[i].calculate_finish_event.getProfilingInfo<CL_PROFILING_COMMAND_END>(&ocl_err);
+        if (ocl_err != CL_SUCCESS) {
+            std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
+            return EXIT_FAILURE;
+        }
+
+        std::cout << i << " duration (ms): " << (time_part_end_ns - time_part_start_ns) / 1.0e6f << std::endl;
+    }
 
     /***********************************************************/
 
