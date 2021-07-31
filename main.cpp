@@ -11,6 +11,7 @@ struct OclDeviceData {
     cl::CommandQueue command_queue;
     cl::Kernel kernel;
     cl::Buffer buffer;
+    cl::Event copy_to_gpu_finish_event;
     cl::Event calculate_finish_event;
     cl::Event copy_from_gpu_finish_event;
 };
@@ -168,7 +169,7 @@ int main()
 
     /**********************************************************/
 
-    std::vector<float> test_data(10000000, 0.0f);
+    std::vector<float> test_data(1e7, 0.0f);
     size_t part_size = test_data.size() / ocl_devices_data.size();
     size_t last_part_size = test_data.size() - (ocl_devices_data.size() - 1) * part_size;
 
@@ -181,8 +182,8 @@ int main()
             current_part_size = part_size;
         }
 
-        ocl_devices_data[i].buffer = cl::Buffer(ocl_devices_data[i].context, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR, current_part_size * sizeof(float),
-            test_data.data() + part_size * i, &ocl_err);
+        ocl_devices_data[i].buffer = cl::Buffer(ocl_devices_data[i].context, CL_MEM_READ_WRITE,
+            current_part_size * sizeof(float), nullptr, &ocl_err);
         if (ocl_err != CL_SUCCESS) {
             std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
             return EXIT_FAILURE;
@@ -200,25 +201,27 @@ int main()
     std::chrono::steady_clock::time_point time_start = std::chrono::high_resolution_clock::now();
 
     for (size_t i = 0; i < ocl_devices_data.size(); i++) {
-        cl::NDRange size_range;
+        size_t current_part_size;
         if (i == ocl_devices_data.size() - 1) {
-            size_range = cl::NDRange(last_part_size);
-        } else {
-            size_range = cl::NDRange(part_size);
+            current_part_size = last_part_size;
+        }
+        else {
+            current_part_size = part_size;
         }
 
-        ocl_err = ocl_devices_data[i].command_queue.enqueueNDRangeKernel(ocl_devices_data[i].kernel, cl::NullRange, size_range, cl::NullRange, nullptr,
-            &ocl_devices_data[i].calculate_finish_event);
+        ocl_err = ocl_devices_data[i].command_queue.enqueueWriteBuffer(ocl_devices_data[i].buffer, false, 0, current_part_size * sizeof(float),
+            test_data.data() + part_size * i, nullptr, &ocl_devices_data[i].copy_to_gpu_finish_event);
         if (ocl_err != CL_SUCCESS) {
             std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
             return EXIT_FAILURE;
         }
 
-        size_t current_part_size;
-        if (i == ocl_devices_data.size() - 1) {
-            current_part_size = last_part_size;
-        } else {
-            current_part_size = part_size;
+        std::vector<cl::Event> copy_to_gpu_finish_events({ ocl_devices_data[i].copy_to_gpu_finish_event });
+        ocl_err = ocl_devices_data[i].command_queue.enqueueNDRangeKernel(ocl_devices_data[i].kernel, cl::NullRange,
+            cl::NDRange(current_part_size), cl::NullRange, &copy_to_gpu_finish_events, &ocl_devices_data[i].calculate_finish_event);
+        if (ocl_err != CL_SUCCESS) {
+            std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
+            return EXIT_FAILURE;
         }
 
         std::vector<cl::Event> calculate_finish_events({ ocl_devices_data[i].calculate_finish_event });
@@ -231,7 +234,7 @@ int main()
     }
 
     for (size_t i = 0; i < ocl_devices_data.size(); i++) {
-        ocl_err = cl::WaitForEvents({ ocl_devices_data[i].calculate_finish_event });
+        ocl_err = cl::WaitForEvents({ ocl_devices_data[i].copy_from_gpu_finish_event });
         if (ocl_err != CL_SUCCESS) {
             std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
             return EXIT_FAILURE;
