@@ -1,5 +1,7 @@
 #include <iostream>
 #include <fstream>
+#include <chrono>
+#include <algorithm>
 #include <CL/opencl.hpp>
 
 struct OclDeviceData {
@@ -8,6 +10,9 @@ struct OclDeviceData {
     cl::Context context;
     cl::CommandQueue command_queue;
     cl::Kernel kernel;
+    cl::Buffer buffer;
+    cl::Event calculate_finish_event;
+    cl::Event copy_from_gpu_finish_event;
 };
 
 static void CL_CALLBACK on_ocl_context_error(const char* errinfo, const void* private_info, rsize_t cb, void* user_data)
@@ -159,6 +164,98 @@ int main()
 
         cl::Kernel ocl_kernel(ocl_program, "test_kernel", &ocl_err);
         ocl_devices_data[i].kernel = ocl_kernel;
+    }
+
+    /**********************************************************/
+
+    std::vector<float> test_data(10000000, 0.0f);
+    size_t part_size = test_data.size() / ocl_devices_data.size();
+    size_t last_part_size = test_data.size() - (ocl_devices_data.size() - 1) * part_size;
+
+    for (size_t i = 0; i < ocl_devices_data.size(); i++) {
+        size_t current_part_size;
+        if (i == ocl_devices_data.size() - 1) {
+            current_part_size = last_part_size;
+        }
+        else {
+            current_part_size = part_size;
+        }
+
+        ocl_devices_data[i].buffer = cl::Buffer(ocl_devices_data[i].context, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR, current_part_size * sizeof(float),
+            test_data.data() + part_size * i, &ocl_err);
+        if (ocl_err != CL_SUCCESS) {
+            std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
+            return EXIT_FAILURE;
+        }
+
+        ocl_err = ocl_devices_data[i].kernel.setArg<cl::Buffer>(0, ocl_devices_data[i].buffer);
+        if (ocl_err != CL_SUCCESS) {
+            std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+
+    /***********************************************************/
+
+    std::chrono::steady_clock::time_point time_start = std::chrono::high_resolution_clock::now();
+
+    for (size_t i = 0; i < ocl_devices_data.size(); i++) {
+        cl::NDRange size_range;
+        if (i == ocl_devices_data.size() - 1) {
+            size_range = cl::NDRange(last_part_size);
+        } else {
+            size_range = cl::NDRange(part_size);
+        }
+
+        ocl_err = ocl_devices_data[i].command_queue.enqueueNDRangeKernel(ocl_devices_data[i].kernel, cl::NullRange, size_range, cl::NullRange, nullptr,
+            &ocl_devices_data[i].calculate_finish_event);
+        if (ocl_err != CL_SUCCESS) {
+            std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
+            return EXIT_FAILURE;
+        }
+
+        size_t current_part_size;
+        if (i == ocl_devices_data.size() - 1) {
+            current_part_size = last_part_size;
+        } else {
+            current_part_size = part_size;
+        }
+
+        std::vector<cl::Event> calculate_finish_events({ ocl_devices_data[i].calculate_finish_event });
+        ocl_err = ocl_devices_data[i].command_queue.enqueueReadBuffer(ocl_devices_data[i].buffer, false, 0, current_part_size * sizeof(float),
+            test_data.data() + part_size * i, &calculate_finish_events, &ocl_devices_data[i].copy_from_gpu_finish_event);
+        if (ocl_err != CL_SUCCESS) {
+            std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+
+    for (size_t i = 0; i < ocl_devices_data.size(); i++) {
+        ocl_err = cl::WaitForEvents({ ocl_devices_data[i].calculate_finish_event });
+        if (ocl_err != CL_SUCCESS) {
+            std::cerr << __FILE__ << ":" << __LINE__ << ", ocl_error: " << ocl_err << std::endl;
+            return EXIT_FAILURE;
+        }
+    }
+
+    std::chrono::steady_clock::time_point time_end = std::chrono::high_resolution_clock::now();
+
+    std::cout << "Duration: " << std::chrono::duration<double, std::milli>(time_end - time_start).count() << std::endl;
+
+    /***********************************************************/
+
+    std::fstream results_file("results.bin", std::ios::out);
+    if (!results_file.is_open()) {
+        std::cerr << __FILE__ << ":" << __LINE__ << ", failed to create results file" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    results_file.write(reinterpret_cast<char*>(test_data.data()), test_data.size() * sizeof(float));
+    results_file.close();
+
+    if (!std::all_of(test_data.cbegin(), test_data.cend(), [=] (float element) -> bool { return element == 1.0f; })) {
+        std::cerr << __FILE__ << ":" << __LINE__ << ", wrong result" << std::endl;
+        return EXIT_FAILURE;
     }
 
     return EXIT_SUCCESS;
